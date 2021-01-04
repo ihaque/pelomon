@@ -1,7 +1,7 @@
 /* Software Peloton emulator and decoding classes
  *
  * Copyright 2020 Imran S Haque (imran@ihaque.org)
- * Licensed under the CC-NY-NC 4.0 license
+ * Licensed under the CC-BY-NC 4.0 license
  * (https://creativecommons.org/licenses/by-nc/4.0/).
  */
 #ifndef _PELOTON_H_

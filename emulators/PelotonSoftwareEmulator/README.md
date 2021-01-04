@@ -1,7 +1,7 @@
 # Peloton interface library and software emulator
 
 Copyright 2020 Imran S Haque (ish@ihaque.org). Licensed under the
-[CC-NY-NC 4.0 license](https://creativecommons.org/licenses/by-nc/4.0/).
+[CC-BY-NC 4.0 license](https://creativecommons.org/licenses/by-nc/4.0/).
 
 # Description
 

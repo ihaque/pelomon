@@ -1,7 +1,7 @@
 # Schematics for the PeloMon
 
 Copyright 2020 Imran S Haque (ish@ihaque.org). Licensed under the
-[CC-NY-NC 4.0 license](https://creativecommons.org/licenses/by-nc/4.0/).
+[CC-BY-NC 4.0 license](https://creativecommons.org/licenses/by-nc/4.0/).
 
 For more details and a component list, see the accompanying blog post at
 [https://ihaque.org/posts/2020/12/28/pelomon-part-iii-hardware](https://ihaque.org/posts/2020/12/28/pelomon-part-iii-hardware).
