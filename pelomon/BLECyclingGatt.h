@@ -39,16 +39,10 @@ const char line_1[] PROGMEM = "ID=01,UUID=0x1818";
 const char line_2[] PROGMEM = "  ID=01,UUID=0x2A65,PROPERTIES=0x02,MIN_LEN=4,MAX_LEN=4,DATATYPE=0,VALUE=0";
 const char line_3[] PROGMEM = "  ID=02,UUID=0x2A63,PROPERTIES=0x10,MIN_LEN=6,MAX_LEN=6,DATATYPE=0,VALUE=00-00-00-00-00-00";
 const char line_4[] PROGMEM = "  ID=03,UUID=0x2A5D,PROPERTIES=0x02,MIN_LEN=1,MAX_LEN=1,DATATYPE=0,VALUE=0";
-const char line_5[] PROGMEM = "ID=02,UUID=0x1816";
-const char line_6[] PROGMEM = "  ID=04,UUID=0x2A5C,PROPERTIES=0x02,MIN_LEN=2,MAX_LEN=2,DATATYPE=0,VALUE=0";
-const char line_7[] PROGMEM = "  ID=05,UUID=0x2A5B,PROPERTIES=0x10,MIN_LEN=11,MAX_LEN=11,DATATYPE=0,VALUE=00-00-00-00-00-00-00-00-00-00-00";
-const char line_8[] PROGMEM = "  ID=06,UUID=0x2A5D,PROPERTIES=0x02,MIN_LEN=1,MAX_LEN=1,DATATYPE=0,VALUE=0";
-const char line_9[] PROGMEM = "  ID=07,UUID=0x2A55,PROPERTIES=0x28,MIN_LEN=1,MAX_LEN=5,DATATYPE=0,VALUE=0";
 const char line_10[] PROGMEM = "OK";
 
 const char* const EXPECTED_GATT_DEFNS[] PROGMEM = {line_1, line_2, line_3,
-                                                   line_4, line_5, line_6, line_7,
-                                                   line_8, line_9, line_10};
+                                                   line_4, line_10};
 
 
 // Computed from above strings using following Python
@@ -65,14 +59,9 @@ uint16_t const EXPECTED_GATT_DEFNS_FLETCHER16[] PROGMEM = {
     0x389C, //  "  ID=01,UUID=0x2A65,PROPERTIES=0x02,MIN_LEN=4,MAX_LEN=4,DATATYPE=0,VALUE=0"
     0x228F, //  "  ID=02,UUID=0x2A63,PROPERTIES=0x10,MIN_LEN=6,MAX_LEN=6,DATATYPE=0,VALUE=00-00-00-00-00-00"
     0x39A6, //  "  ID=03,UUID=0x2A5D,PROPERTIES=0x02,MIN_LEN=1,MAX_LEN=1,DATATYPE=0,VALUE=0"
-    0xB744, //  "ID=02,UUID=0x1816"
-    0x77A8, //  "  ID=04,UUID=0x2A5C,PROPERTIES=0x02,MIN_LEN=2,MAX_LEN=2,DATATYPE=0,VALUE=0"
-    0x4DB9, //  "  ID=05,UUID=0x2A5B,PROPERTIES=0x10,MIN_LEN=11,MAX_LEN=11,DATATYPE=0,VALUE=00-00-00-00-00-00-00-00-00-00-00"
-    0x05A9, //  "  ID=06,UUID=0x2A5D,PROPERTIES=0x02,MIN_LEN=1,MAX_LEN=1,DATATYPE=0,VALUE=0"
-    0x93A7, //  "  ID=07,UUID=0x2A55,PROPERTIES=0x28,MIN_LEN=1,MAX_LEN=5,DATATYPE=0,VALUE=0"
     0xE99A, //  "OK"
 };
-const uint8_t EXPECTED_GATT_DEFNS_LINE_COUNT = 10;
+const uint8_t EXPECTED_GATT_DEFNS_LINE_COUNT = 5;
 
 
 struct ProgmemComparatorState {
@@ -251,7 +240,7 @@ class BLECyclingPower {
 
             gatt_.clear();
             setup_cycling_power_feature();
-            setup_cycling_speed_cadence_feature();
+            //setup_cycling_speed_cadence_feature();
 
             // Store initialization to EEPROM
             EEPROM.update(EEPROM_BLE_CP_SERVICE_ID_ADDRESS,
@@ -304,8 +293,8 @@ class BLECyclingPower {
         cp_measurement_id = gatt_.addCharacteristic(
             /* uuid          */ CYCLING_POWER_MEASUREMENT_CHAR_UUID,
             /* properties    */ (GATT_CHARS_PROPERTIES_NOTIFY),
-            /* min_len       */ 6,
-            /* max_len       */ 6,
+            /* min_len       */ 16,
+            /* max_len       */ 16,
             /* datatype      */ BLE_DATATYPE_AUTO,
             /* description   */ NULL,
             /* presentFormat */ NULL);
@@ -367,24 +356,16 @@ class BLECyclingPower {
     bool update(const uint16_t crank_revs, const uint32_t last_crank_rev_timestamp_ms,
                 const uint32_t wheel_revs, const uint32_t last_wheel_rev_timestamp_ms,
                 uint16_t power_watts, const uint16_t total_energy_kj) {
-        uint8_t data[11] = {0};
+        uint8_t data[17] = {0};
         uint8_t base;
         const bool update_cp = true;
-        const bool update_csc = true;
+        const bool update_csc = false;
         bool cpm_success = true;
         bool csc_success = true;
         if (update_cp) {
             // CP Measurement format specified in
             // https://github.com/oesmith/gatt-xml/blob/master/
             //    org.bluetooth.characteristic.cycling_power_measurement.xml
-
-            /* NB: We will report wheel and crank revs in the CSC characteristic
-             * rather than here. We'll only use CPM for power and energy.
-             * CP and CSC use different time resolutions for wheel revs, and
-             * exposing both according to their specs gives Wahoo a fit - never
-             * figures out what the right speed is since they have different
-             * time resolution.
-             */
 
             base = 0;
             // flags: mandatory, 16 bit bitfield
@@ -395,6 +376,24 @@ class BLECyclingPower {
             // Clamp the uint16 input to avoid overflowing the sint16 expected by BT spec
             if (power_watts > 0x7FFF) power_watts = 0x7FFF;
             APPEND_BUFFER(data, base, power_watts);
+
+            // Wheel revolution daa: uint32+uint16
+            // Wheel revs: uint32: count of cumulative revolutions
+            APPEND_BUFFER(data, base, wheel_revs);
+            // Last wheel rev event time: uint16, 1/2048s resolution
+            // scale ms timestamp by 2048/1000 = 256/125 to get units right
+            uint16_t last_wheel_event_time_cp = \
+                (uint16_t) ((last_wheel_rev_timestamp_ms * 256) / 125);
+            APPEND_BUFFER(data, base, last_wheel_event_time_cp);
+
+            // 3.2.1.6 Crank revs has a pair of uint16s
+            // ...cumulative crank revolutions
+            APPEND_BUFFER(data, base, crank_revs);
+            // ...and last crank event time in 1/1024 sec.
+            // scale ms timestamp by 1024 / 1000 = 128/125 to get units right.
+            uint16_t last_crank_event_time_cp = \
+                (uint16_t) ((last_crank_rev_timestamp_ms * 128) / 125);
+            APPEND_BUFFER(data, base, last_crank_event_time_cp);
 
             // 3.2.1.12 accumulated energy is in kJ uint16
             APPEND_BUFFER(data, base, total_energy_kj);
