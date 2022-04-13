@@ -172,6 +172,7 @@ void setup() {
 
 bool receive_message_pair(void) {
     bool hu_message_complete = false, bike_message_complete = false;
+    uint8_t bike_buf_bytes_patch = 0;
     digitalWrite(PIN_STATE_READ_HU, HIGH);
     peloton.hu_listen();
     if (peloton.hu_available() == 0) {
@@ -221,14 +222,12 @@ bool receive_message_pair(void) {
         }
         uint8_t next_byte = peloton.bike_read();
 
-        if (next_byte == 0xF1 ||
-            bike_buf_bytes > (BIKE_MSG_BUF_LEN - 1)) {
-            // Reset - starting a new message; or overflow
-            // as long as this byte isn't the checksum
-            if (next_byte != running_checksum)
-                bike_buf_bytes = 0;
+        if(bike_buf_bytes_patch == 0 && (next_byte == 0x41 || next_byte == 0x44 || next_byte == 0x4A)) {
+            bike_buf[bike_buf_bytes_patch++] = (uint8_t) 0xF1;
+            running_checksum += 0xF1;
         }
-        bike_buf[bike_buf_bytes++] = (uint8_t) next_byte;
+
+        bike_buf[bike_buf_bytes_patch++] = (uint8_t) next_byte;
         running_checksum += next_byte;
 
         if (next_byte == 0xF6) {
@@ -236,6 +235,7 @@ bool receive_message_pair(void) {
             peloton.hu_listen();
             digitalWrite(PIN_STATE_READ_BIKE, LOW);
             running_checksum = 0;
+            bike_buf_bytes = bike_buf_bytes_patch;
             bike_message_complete = true;
         }
     }
